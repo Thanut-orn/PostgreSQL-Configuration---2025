@@ -188,11 +188,18 @@ docker exec postgres-config nproc
 docker exec postgres-config df -h
 ```
 ### บันทึกผลการทดลอง
-```
+
 1. อธิบายหน้าที่คำสั่ง docker exec postgres-config free, docker exec postgres-config df
+docker exec postgres-config free
+- ตรวจสอบการใช้งานหน่วยความจำ (RAM) ภายใน container postgres-config
+docker exec postgres-config df
+- ตรวจสอบการใช้งานพื้นที่จัดเก็บข้อมูล (Disk Space) ภายใน container postgres-config
 2. option -h ในคำสั่งมีผลอย่างไร
+- เปลี่ยนหน่วยของตัวเลข (เช่น ขนาดไฟล์, พื้นที่ดิสก์) ให้อยู่ในรูปแบบที่เข้าใจง่าย โดยจะใส่หน่วยกำกับมาให้ เช่น K (Kilobyte), M (Megabyte), G (Gigabyte)
 3. docker exec postgres-config nproc  แสดงค่าผลลัพธ์อย่างไร
-```
+<img width="503" height="91" alt="image" src="https://github.com/user-attachments/assets/15b8f588-cc90-491d-87bc-672b2e1c0044" />
+
+
 #### 1.2 เชื่อมต่อและตรวจสอบสถานะปัจจุบัน
 ```bash
 docker exec -it postgres-config psql -U postgres
@@ -210,7 +217,9 @@ SHOW data_directory;
 ### บันทึกผลการทดลอง
 ```
 1. ตำแหน่งที่อยู่ของไฟล์ configuration อยู่ที่ตำแหน่งใด
+/var/lib/postgresql/data/postgresql.conf
 2. ตำแหน่งที่อยู่ของไฟล์ data อยู่ที่ตำแหน่งใด
+/var/lib/postgresql/data
 ```
 -- ตรวจสอบการตั้งค่าปัจจุบัน
 SELECT name, setting, unit, category, short_desc 
