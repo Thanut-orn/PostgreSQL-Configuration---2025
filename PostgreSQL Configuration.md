@@ -213,13 +213,15 @@ SELECT version();
 SHOW config_file;
 SHOW hba_file;
 SHOW data_directory;
-
+```
 ### บันทึกผลการทดลอง
 ```
 1. ตำแหน่งที่อยู่ของไฟล์ configuration อยู่ที่ตำแหน่งใด
-/var/lib/postgresql/data/postgresql.conf
+ตอบ /var/lib/postgresql/data/postgresql.conf
 2. ตำแหน่งที่อยู่ของไฟล์ data อยู่ที่ตำแหน่งใด
-/var/lib/postgresql/data
+ตอบ /var/lib/postgresql/data
+```
+
 ```
 -- ตรวจสอบการตั้งค่าปัจจุบัน
 SELECT name, setting, unit, category, short_desc 
@@ -230,9 +232,10 @@ WHERE name IN (
 );
 ```
 ### บันทึกผลการทดลอง
-```
-บันทึกรูปผลของ configuration ทั้ง 6 ค่า 
-```
+
+บันทึกรูปผลของ configuration ทั้ง 6 ค่า
+<img width="1360" height="491" alt="image" src="https://github.com/user-attachments/assets/346e0ca2-ea6a-432c-99a8-fb98c3a44fae" />
+
 
 ### Step 2: การปรับแต่งพารามิเตอร์แบบค่อยเป็นค่อยไป
 
@@ -242,13 +245,19 @@ WHERE name IN (
 SELECT name, setting, unit, source, pending_restart
 FROM pg_settings 
 WHERE name = 'shared_buffers';
-
+```
 ### ผลการทดลอง
-```
+
 1.รูปผลการรันคำสั่ง
+<img width="707" height="225" alt="image" src="https://github.com/user-attachments/assets/cd6aa92f-7dea-4398-af9c-9d7a4157e015" />
+
 2. ค่า  shared_buffers มีการกำหนดค่าไว้เท่าไหร่ (ใช้ setting X unit)
+- คำนวณ: 16384×8 kB=131072 kB
+- แปลงเป็น MB: 131072 kB/1024=128 MB
 3. ค่า  pending_restart ในผลการทดลองมีค่าเป็นอย่างไร และมีความหมายอย่างไร
-```
+- ในผลลัพธ์นี้ ค่า pending_restart คือ f ซึ่งย่อมาจาก false
+- หมายความว่า ไม่จำเป็นต้องรีสตาร์ท (restart) เซิร์ฟเวอร์ PostgreSQL เพื่อให้ค่า shared_buffers ที่ตั้งไว้มีผลบังคับใช้
+
 -- คำนวณและตั้งค่าใหม่
 -- สำหรับระบบ 2GB: 512MB (25%)
 ALTER SYSTEM SET shared_buffers = '512MB';
