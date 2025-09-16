@@ -234,6 +234,7 @@ WHERE name IN (
 ### บันทึกผลการทดลอง
 
 บันทึกรูปผลของ configuration ทั้ง 6 ค่า
+
 <img width="1360" height="491" alt="image" src="https://github.com/user-attachments/assets/346e0ca2-ea6a-432c-99a8-fb98c3a44fae" />
 
 
@@ -249,6 +250,7 @@ WHERE name = 'shared_buffers';
 ### ผลการทดลอง
 
 1.รูปผลการรันคำสั่ง
+
 <img width="707" height="225" alt="image" src="https://github.com/user-attachments/assets/cd6aa92f-7dea-4398-af9c-9d7a4157e015" />
 
 2. ค่า  shared_buffers มีการกำหนดค่าไว้เท่าไหร่ (ใช้ setting X unit)
@@ -258,6 +260,7 @@ WHERE name = 'shared_buffers';
 - ในผลลัพธ์นี้ ค่า pending_restart คือ f ซึ่งย่อมาจาก false
 - หมายความว่า ไม่จำเป็นต้องรีสตาร์ท (restart) เซิร์ฟเวอร์ PostgreSQL เพื่อให้ค่า shared_buffers ที่ตั้งไว้มีผลบังคับใช้
 
+```
 -- คำนวณและตั้งค่าใหม่
 -- สำหรับระบบ 2GB: 512MB (25%)
 ALTER SYSTEM SET shared_buffers = '512MB';
@@ -269,15 +272,21 @@ FROM pg_settings
 WHERE name = 'shared_buffers';
 
 ```
+```
 -- ออกจาก postgres prompt (กด \q แล้ว enter) ทำการ Restart PostgreSQL ด้วยคำสั่ง แล้ว run docker อีกครั้ง หรือใช้วิธีการ stop และ run containner
 docker exec -it -u postgres postgres-config pg_ctl restart -D /var/lib/postgresql/data -m fast
-
-### ผลการทดลอง
 ```
+### ผลการทดลอง
+
 รูปผลการเปลี่ยนแปลงค่า pending_restart
+
+<img width="680" height="229" alt="image" src="https://github.com/user-attachments/assets/08f8f4f1-d48f-4e91-91a8-5b2b05b030f2" />
+
 รูปหลังจาก restart postgres
 
-```
+<img width="726" height="252" alt="image" src="https://github.com/user-attachments/assets/ccf130e3-0485-46a1-b930-1b0bcf6f2800" />
+
+
 
 #### 2.2 ปรับแต่ง Work Memory (ไม่ต้อง restart)
 ```sql
@@ -298,9 +307,12 @@ FROM pg_settings
 WHERE name = 'work_mem';
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการเปลี่ยนแปลงค่า work_mem
-```
+
+<img width="548" height="232" alt="image" src="https://github.com/user-attachments/assets/915ff37b-3226-4415-a8b9-eb23db5d99ac" />
+
+
 
 #### 3.3 ปรับแต่ง Maintenance Work Memory
 ```sql
@@ -315,9 +327,12 @@ SELECT pg_reload_conf();
 SHOW maintenance_work_mem;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการเปลี่ยนแปลงค่า maintenance_work_mem
-```
+
+<img width="533" height="192" alt="image" src="https://github.com/user-attachments/assets/f9c09fbf-d791-4fe1-a216-9dd099bee4ad" />
+
+
 
 #### 3.4 ปรับแต่ง WAL Buffers
 ```sql
@@ -340,9 +355,12 @@ docker exec -it postgres-config psql -U postgres
 SHOW wal_buffers;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการเปลี่ยนแปลงค่า wal_buffers
-```
+
+<img width="385" height="149" alt="image" src="https://github.com/user-attachments/assets/45aa719c-019b-42f1-9a48-6d90f3888765" />
+
+
 
 #### 3.5 ปรับแต่ง Effective Cache Size
 ```sql
@@ -357,9 +375,11 @@ SELECT pg_reload_conf();
 SHOW effective_cache_size;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการเปลี่ยนแปลงค่า effective_cache_size
-```
+<img width="452" height="179" alt="image" src="https://github.com/user-attachments/assets/29537758-e036-4e49-9367-1d316313e85a" />
+
+
 
 ### Step 4: ตรวจสอบผล
 
@@ -386,9 +406,11 @@ WHERE name IN (
 ORDER BY name;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการลัพธ์การตั้งค่า
-```
+
+<img width="1407" height="308" alt="image" src="https://github.com/user-attachments/assets/9ffbb8ad-236b-4bca-aa96-2cb92cf72d8a" />
+
 
 ### Step 5: การสร้างและทดสอบ Workload
 
@@ -417,7 +439,7 @@ CREATE INDEX idx_large_table_created_at ON large_table(created_at);
 #### 5.2 การทดสอบ Work Memory
 ```sql
 -- แทรกข้อมูลจำนวนมาก (ทดสอบ work_mem)
-INSERT INTO large_table (data, number) 
+INSERT INTO large_table (data, number); 
 SELECT 
     'Test data for performance ' || i,
     (random() * 1000000)::integer
