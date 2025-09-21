@@ -452,11 +452,25 @@ ORDER BY data
 LIMIT 1000;
 ```
 ### ผลการทดลอง
-```
-1. คำสั่ง EXPLAIN(ANALYZE,BUFFERS) คืออะไร 
+
+1. คำสั่ง EXPLAIN(ANALYZE,BUFFERS) คืออะไร
+ตอบ คือคำสั่งขั้นสูงใน PostgreSQL ที่ใช้สำหรับ วิเคราะห์ประสิทธิภาพของคำสั่ง SQL อย่างละเอียด โดยจะแสดงให้เห็นว่าฐานข้อมูลมี "แผนการทำงาน" (Execution Plan) อย่างไร และ "ผลลัพธ์การทำงานจริง" เป็นอย่างไร
+
 2. รูปผลการรัน
+
+<img width="1371" height="510" alt="image" src="https://github.com/user-attachments/assets/544d4598-3ed0-4fc2-a56c-de740c7d7da7" />
+
+
 3. อธิบายผลลัพธ์ที่ได้
-```
+ตอบ 1. Parallel Seq Scan on large_table คือการอ่านข้อมูลทั้งตาราง (large_table) เพราะไม่มี Index ให้ใช้ PostgreSQL
+จึงทำงานแบบขนาน (Parallel) โดยใช้ Worker 2 ตัวมาช่วยกันอ่านเพื่อความรวดเร็ว
+actual time=...57.032 ms: Worker ที่ช้าสุดใช้เวลาประมาณ 57 ms
+Buffers: shared read=5059: จุดที่บ่งชี้ปัญหา คือมีการอ่านข้อมูลจาก ดิสก์ (Disk) ถึง 5,059 บล็อก 
+2. Sort นำข้อมูลที่อ่านมาได้ทั้งหมด มาเรียงลำดับตามเงื่อนไข
+actual time=...116.523 ms ขั้นตอนนี้ใช้เวลามากที่สุดคือ ~116 ms
+Memory: 243kB: ใช้หน่วยความจำ (RAM) ไป 243 KB ในการเรียงข้อมูล
+3. Gather Merge และ Limit ทำหน้าที่รวบรวมข้อมูลที่เรียงแล้วจาก Worker ทั้งสองเข้าด้วยกัน จากนั้น Limit จะเลือกเอาแค่ 1,000 แถวแรกตามที่ต้องการ
+
 ```sql
 -- ทดสอบ Hash operation
 EXPLAIN (ANALYZE, BUFFERS)
@@ -468,11 +482,18 @@ LIMIT 100;
 ```
 
 ### ผลการทดลอง
-```
+
 1. รูปผลการรัน
+<img width="1382" height="503" alt="image" src="https://github.com/user-attachments/assets/6810413f-e56a-49b1-81ff-99f932249d24" />
+
 2. อธิบายผลลัพธ์ที่ได้ 
+ตอบ ใช้ Index Only Scan อ่านข้อมูลจากดัชนีโดยตรง (actual rows=532, shared hit=5)
+- GroupAggregate รวมกลุ่มตาม number และกรองด้วย HAVING count(*) > 1 (ตัดทิ้ง 306 กลุ่ม)
+- Limit 100 หยุดเมื่อได้ผลลัพธ์ครบ → ลดภาระการประมวลผล - ไม่ใช้ Sort/Hash หรือ temp I/O → เร็วมาก (Execution 1.827 ms)
 3. การสแกนเป็นแบบใด เกิดจากเหตุผลใด
-```
+ตอบ การสแกนแบบ Index Only Scan คือการสแกนข้อมูลโดย อ่านจาก Index เพียงอย่างเดียว แล้วได้คำตอบที่ต้องการทันที โดยไม่ต้องเข้าไปยุ่งกับข้อมูลในตารางหลักเลย
+    เกิดจากการที่เราได้ สร้าง Index บนคอลัมน์ (number) ที่ Query ต้องการใช้งาน ฐานข้อมูลจึงวิ่งไปที่ Index ซึ่งมีข้อมูลที่จัดเรียงไว้พร้อมแล้ว ทำให้ทำงานได้เร็วมาก
+
 #### 5.3 การทดสอบ Maintenance Work Memory
 ```sql
 -- ทดสอบ CREATE INDEX (จะใช้ maintenance_work_mem)
