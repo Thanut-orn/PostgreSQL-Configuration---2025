@@ -583,14 +583,14 @@ ORDER BY heap_blks_read + heap_blks_hit DESC;
 ### ผลการทดลอง
 
 1. รูปผลการทดลอง
-
-<img width="776" height="152" alt="image" src="https://github.com/user-attachments/assets/042abf56-b5ea-48de-b6c7-929d38c28ceb" />
+<img width="1152" height="455" alt="image" src="https://github.com/user-attachments/assets/dbc0bd1f-7156-4bcc-b5cf-e34af55d633f" />
 
 2. อธิบายผลลัพธ์ที่ได้
 ตอบ
-- อัตราการเข้าถึงแคชสูงมาก (98.38%): แสดงว่าระบบสามารถดึงข้อมูลจากหน่วยความจำได้อย่างมีประสิทธิภาพ ลดการเข้าถึงดิสก์ซึ่งช้ากว่า
-- จำนวนการอ่านจากดิสก์น้อย: มีเพียง 10,124 ครั้งเทียบกับการเรียกจากแคชกว่า 600,000 ครั้ง แสดงว่าข้อมูลในตารางนี้ถูกใช้งานบ่อยและถูกเก็บไว้ในแคช
-- เวลาในการประมวลผลต่ำ (13.209 ms): บ่งบอกว่าคำสั่ง SQL ทำงานได้รวดเร็ว ซึ่งเป็นผลจากการใช้แคชอย่างมีประสิทธิภาพ
+- heap_blks_read = 0 → ไม่มีการอ่านบล็อกข้อมูลจากดิสก์เลย
+- heap_blks_hit = 620,839 → การเข้าถึงข้อมูลทั้งหมด (~620k ครั้ง) ถูกดึงมาจาก shared buffers (หน่วยความจำ)
+- hit_ratio_percent = 100.00% → อัตราการ hit อยู่ที่ 100% หมายถึง ทุกครั้งที่อ่านข้อมูลมาจากหน่วยความจำ ไม่ต้องไปอ่านจากดิสก์
+
 
 #### 6.3 ดู Buffer Hit Ratio ทั้งระบบ
 ```sql
@@ -604,13 +604,15 @@ WHERE datname = current_database();
 ### ผลการทดลอง
 
 1. รูปผลการทดลอง
-<img width="679" height="152" alt="image" src="https://github.com/user-attachments/assets/01646f28-ac22-42fa-9023-4c8b31ad6f4d" />
+
+<img width="679" height="152" alt="Screenshot 2025-09-22 093515" src="https://github.com/user-attachments/assets/19a7f619-3b12-4fb7-9c94-79ebcede7275" />
 
 2. อธิบายผลลัพธ์ที่ได้
-ตอบ
-- อัตราการเข้าถึงแคชสูงมาก (99.57%): แสดงว่าระบบสามารถดึงข้อมูลจากหน่วยความจำได้อย่างมีประสิทธิภาพ ลดการเข้าถึงดิสก์ซึ่งช้ากว่าและสิ้นเปลืองทรัพยากร
-- จำนวนการอ่านจากดิสก์น้อยมาก: มีเพียง 17,599 ครั้งเทียบกับการเรียกจากแคชกว่า 4 ล้านครั้ง แสดงว่าข้อมูลในฐานข้อมูลนี้ถูกใช้งานบ่อยและถูกเก็บไว้ในแคชอย่างเหมาะสม
-- เวลาในการประมวลผลต่ำ (22.377 ms): บ่งบอกว่าคำสั่ง SQL ทำงานได้รวดเร็ว ซึ่งเป็นผลจากการใช้แคชอย่างมีประสิทธิภาพ
+- blks_read = 17599 → มีการอ่านบล็อกข้อมูลจากดิสก์จริงเพียง 17,599 ครั้ง
+- blks_hit = 4,059,156 → มีการเข้าถึงข้อมูลจากหน่วยความจำ (shared buffers) กว่า 4 ล้านครั้ง
+- hit_ratio_percent = 99.57% → อัตราการอ่านข้อมูลจากหน่วยความจำสูงมาก เกือบ 100%
+สรุป: ฐานข้อมูล postgres มีประสิทธิภาพการเข้าถึงข้อมูลดีมาก เนื่องจากเกือบทั้งหมดดึงจากหน่วยความจำโดยตรง ดิสก์ถูกใช้น้อยมาก → ทำให้ query เร็วและลด I/O บนดิสก์
+
 
 #### 6.4 ดู Table ที่มี Disk I/O มาก
 ```sql
@@ -631,9 +633,14 @@ LIMIT 10;
 
 1. รูปผลการทดลอง
 
+<img width="1234" height="422" alt="image" src="https://github.com/user-attachments/assets/d2cb530e-476b-4b91-b2ef-b790f65d573c" />
 
 2. อธิบายผลลัพธ์ที่ได้
-
+- ตารางผลลัพธ์ว่างเปล่า → แสดงว่าไม่มีตารางใด ๆ ในฐานข้อมูลที่ตรงตามเงื่อนไขของ query ที่รัน
+- สาเหตุอาจเกิดได้จาก:
+  - ไม่มีตารางใน schema ที่ถูกเลือก
+- ตารางมีอยู่ แต่ยัง ไม่เคยถูก access เลย → ไม่มีสถิติ cache (heap_blks_read / heap_blks_hit) ให้แสดง
+- ฟังก์ชันหรือ SQL ที่ใช้กรอง (WHERE เงื่อนไข) อาจจำกัดจนไม่ตรงกับข้อมูลจริง
 
 ### Step 7: การปรับแต่ง Autovacuum
 
@@ -1540,11 +1547,8 @@ $$ LANGUAGE plpgsql;
 
 -- ใช้งาน auto-tuning
 SELECT auto_tune_memory();
-```
+
 ### ผลการทดลอง
-```
-รูปผลการทดลอง
-```
 ```sql
 -- ดูการเปลี่ยนแปลง buffer hit ratio
 SELECT 
@@ -1557,9 +1561,9 @@ WHERE heap_blks_read + heap_blks_hit > 0
 ORDER BY hit_ratio;
 ```
 ### ผลการทดลอง
-```
-รูปผลการทดลอง
-```
+
+<img width="932" height="413" alt="image" src="https://github.com/user-attachments/assets/4b42644b-e4c9-4037-8f8c-d4c58f576192" />
+
 
 ### การคำนวณ Memory Requirements
 
@@ -1591,9 +1595,48 @@ Estimated Usage = 2GB + (32MB × 100 × 0.5) + 512MB + 64MB
 
 ## คำถามท้ายการทดลอง
 1. หน่วยความจำใดบ้างที่เป็น shared memory และมีหลักในการตั้งค่าอย่างไร
+- Shared Memory คือหน่วยความจำกลางที่ทุก connection ใช้ร่วมกัน มีพารามิเตอร์หลัก ๆ ได้แก่:
+- shared_buffers → พื้นที่เก็บ data blocks ที่ดึงมาจากดิสก์ (ควรตั้ง ~25–40% ของ RAM)
+- wal_buffers → ใช้เก็บ Write-Ahead Log ชั่วคราว (ปกติ PostgreSQL คำนวณอัตโนมัติ แต่สามารถปรับได้)
+- work_mem (per query operation) → ใช้ต่อการทำงานของแต่ละ query (เช่น sort, hash join)
+- maintenance_work_mem → ใช้กับงาน maintenance (VACUUM, CREATE INDEX, ANALYZE)
+หลักการตั้งค่า:
+- ตั้ง shared_buffers ให้เหมาะกับ workload (สูงไป → ระบบอื่นอาจ RAM ไม่พอ, ต่ำไป → query ต้องอ่านดิสก์บ่อย)
+- wal_buffers ปล่อยให้ auto ก็มักเพียงพอ
+- work_mem และ maintenance_work_mem ต้องบาลานซ์กับจำนวน connection
 2. Work memory และ maintenance work memory คืออะไร มีหลักการในการกำหนดค่าอย่างไร
+- work_mem → ใช้หน่วยความจำต่อ 1 การดำเนินการ (เช่น sort, hash join) ใน 1 query
+  - ถ้า query ซับซ้อน มีหลาย sort/join → แต่ละขั้นตอนใช้ work_mem แยกกัน
+  - หลักการตั้งค่า: ไม่ควรเกิน (RAM ÷ max_connections ÷ 2) เพื่อกันไม่ให้กิน RAM จน OOM
+- maintenance_work_mem → ใช้ในงาน maintenance เช่น VACUUM, REINDEX, CREATE INDEX
+  - ใช้ต่อ process เดียว
+  - หลักการตั้งค่า: ตั้งค่าสูงกว่าปกติได้ เพราะงานเหล่านี้ทำไม่บ่อย แต่ต้องใช้ memory เยอะ
 3. หากมี RAM 16GB และต้องการกำหนด connection = 200 ควรกำหนดค่า work memory และ maintenance work memory อย่างไร
+- กัน RAM ให้ระบบปฏิบัติการและอื่น ๆ → เหลือ ~12GB สำหรับ PostgreSQL
+- สมมุติใช้ shared_buffers = 4GB
+- เหลือ ~8GB สำหรับ work_mem และ maintenance
+- คำนวณ work_mem: 8GB ÷ 200 connections ≈ 40MB→ แนะนำตั้ง work_mem ~ 32MB (เพื่อเผื่อ margin)
+- maintenance_work_mem:
+  - กำหนดได้สูง เช่น 512MB – 1GB เพราะใช้ทีละงาน ไม่ได้ใช้พร้อมกันทุก connection
 4. ไฟล์ postgresql.conf และ postgresql.auto.conf  มีความสัมพันธ์กันอย่างไร
+- postgresql.conf → ไฟล์หลัก เก็บค่าคอนฟิกทั้งหมด
+- postgresql.auto.conf → เก็บค่าที่ถูกแก้ไขผ่านคำสั่ง ALTER SYSTEM
+- ลำดับความสำคัญ: PostgreSQL จะอ่าน postgresql.conf ก่อน แล้ว override ด้วยค่าใน postgresql.auto.conf แปลว่า ถ้าสองไฟล์มีค่าซ้ำกัน → postgresql.auto.conf จะมีผล
 5. Buffer hit ratio คืออะไร
+- คือ อัตราส่วนการอ่านข้อมูลจาก shared_buffers (memory) เทียบกับการอ่านจากดิสก์
+- สูตร:
+```
+hit_ratio = heap_blks_hit / (heap_blks_hit + heap_blks_read)
+```
+- ค่าใกล้ 100% = ดี (ส่วนใหญ่ข้อมูลอยู่ในหน่วยความจำ → query เร็ว)
+- ค่า < 90% = ควรเพิ่ม shared_buffers หรือปรับ query/index
 6. แสดงผลการคำนวณ การกำหนดค่าหน่วยความจำต่าง ๆ โดยอ้างอิงเครื่องของตนเอง
+- shared_buffers = 4GB
+- work_mem = 128MB 
+- maintenance_work_mem = 512MB 
+- effective_cache_size = 8G
 7. การสแกนของฐานข้อมูล PostgreSQL มีกี่แบบอะไรบ้าง เปรียบเทียบการสแกนแต่ละแบบ
+- Sequential Scan: อ่านทุกแถว
+- Index Scan: ใช้ index
+- Index Only Scan: อ่านจาก index อย่างเดียว
+- Bitmap Scan: ใช้หลาย index รวมกัน
