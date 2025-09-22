@@ -454,22 +454,24 @@ LIMIT 1000;
 ### ผลการทดลอง
 
 1. คำสั่ง EXPLAIN(ANALYZE,BUFFERS) คืออะไร
+
 ตอบ คือคำสั่งขั้นสูงใน PostgreSQL ที่ใช้สำหรับ วิเคราะห์ประสิทธิภาพของคำสั่ง SQL อย่างละเอียด โดยจะแสดงให้เห็นว่าฐานข้อมูลมี "แผนการทำงาน" (Execution Plan) อย่างไร และ "ผลลัพธ์การทำงานจริง" เป็นอย่างไร
 
-2. รูปผลการรัน
+3. รูปผลการรัน
 
 <img width="1371" height="510" alt="image" src="https://github.com/user-attachments/assets/544d4598-3ed0-4fc2-a56c-de740c7d7da7" />
 
 
 3. อธิบายผลลัพธ์ที่ได้
-ตอบ 1. Parallel Seq Scan on large_table คือการอ่านข้อมูลทั้งตาราง (large_table) เพราะไม่มี Index ให้ใช้ PostgreSQL
+ตอบ
+- Parallel Seq Scan on large_table คือการอ่านข้อมูลทั้งตาราง (large_table) เพราะไม่มี Index ให้ใช้ PostgreSQL
 จึงทำงานแบบขนาน (Parallel) โดยใช้ Worker 2 ตัวมาช่วยกันอ่านเพื่อความรวดเร็ว
 actual time=...57.032 ms: Worker ที่ช้าสุดใช้เวลาประมาณ 57 ms
 Buffers: shared read=5059: จุดที่บ่งชี้ปัญหา คือมีการอ่านข้อมูลจาก ดิสก์ (Disk) ถึง 5,059 บล็อก 
-2. Sort นำข้อมูลที่อ่านมาได้ทั้งหมด มาเรียงลำดับตามเงื่อนไข
+- Sort นำข้อมูลที่อ่านมาได้ทั้งหมด มาเรียงลำดับตามเงื่อนไข
 actual time=...116.523 ms ขั้นตอนนี้ใช้เวลามากที่สุดคือ ~116 ms
 Memory: 243kB: ใช้หน่วยความจำ (RAM) ไป 243 KB ในการเรียงข้อมูล
-3. Gather Merge และ Limit ทำหน้าที่รวบรวมข้อมูลที่เรียงแล้วจาก Worker ทั้งสองเข้าด้วยกัน จากนั้น Limit จะเลือกเอาแค่ 1,000 แถวแรกตามที่ต้องการ
+- Gather Merge และ Limit ทำหน้าที่รวบรวมข้อมูลที่เรียงแล้วจาก Worker ทั้งสองเข้าด้วยกัน จากนั้น Limit จะเลือกเอาแค่ 1,000 แถวแรกตามที่ต้องการ
 
 ```sql
 -- ทดสอบ Hash operation
@@ -508,10 +510,14 @@ DELETE FROM large_table WHERE id % 10 = 0;
 VACUUM (ANALYZE, VERBOSE) large_table;
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง จากคำสั่ง VACUUM (ANALYZE, VERBOSE) large_table;
+
+<img width="1202" height="506" alt="image" src="https://github.com/user-attachments/assets/cd06391d-0fd8-4e7f-8ca3-94bad83a1c63" />
+
 2. อธิบายผลลัพธ์ที่ได้
-```
+ตอบ VACUUM (ANALYZE, VERBOSE) ลบ dead tuples 50,000 แถวจาก large_table เหลือ 450,000 แถวจริง ตรวจสอบ index แล้วไม่มี tuple ค้าง ใช้ parallel workers 2 ตัวช่วยเร่งความเร็ว และมีการ ANALYZE เพื่ออัปเดตสถิติให้ Query Planner วางแผนได้แม่นยำ
+
 ### Step 6: การติดตาม Memory Usage
 
 #### 6.1 สร้างฟังก์ชันติดตาม Memory
@@ -552,9 +558,11 @@ SELECT
 FROM get_memory_usage();
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง
-```
+
+<img width="837" height="249" alt="image" src="https://github.com/user-attachments/assets/26ea0d5b-453a-4a29-91b9-7839b5c77bac" />
+
 
 #### 6.2 การติดตาม Buffer Hit Ratio
 ```sql
@@ -573,10 +581,17 @@ WHERE heap_blks_read + heap_blks_hit > 0
 ORDER BY heap_blks_read + heap_blks_hit DESC;
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+
+<img width="776" height="152" alt="image" src="https://github.com/user-attachments/assets/042abf56-b5ea-48de-b6c7-929d38c28ceb" />
+
 2. อธิบายผลลัพธ์ที่ได้
-```
+ตอบ
+- อัตราการเข้าถึงแคชสูงมาก (98.38%): แสดงว่าระบบสามารถดึงข้อมูลจากหน่วยความจำได้อย่างมีประสิทธิภาพ ลดการเข้าถึงดิสก์ซึ่งช้ากว่า
+- จำนวนการอ่านจากดิสก์น้อย: มีเพียง 10,124 ครั้งเทียบกับการเรียกจากแคชกว่า 600,000 ครั้ง แสดงว่าข้อมูลในตารางนี้ถูกใช้งานบ่อยและถูกเก็บไว้ในแคช
+- เวลาในการประมวลผลต่ำ (13.209 ms): บ่งบอกว่าคำสั่ง SQL ทำงานได้รวดเร็ว ซึ่งเป็นผลจากการใช้แคชอย่างมีประสิทธิภาพ
+
 #### 6.3 ดู Buffer Hit Ratio ทั้งระบบ
 ```sql
 SELECT datname,
@@ -587,10 +602,15 @@ FROM pg_stat_database
 WHERE datname = current_database();
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+<img width="679" height="152" alt="image" src="https://github.com/user-attachments/assets/01646f28-ac22-42fa-9023-4c8b31ad6f4d" />
+
 2. อธิบายผลลัพธ์ที่ได้
-```
+ตอบ
+- อัตราการเข้าถึงแคชสูงมาก (99.57%): แสดงว่าระบบสามารถดึงข้อมูลจากหน่วยความจำได้อย่างมีประสิทธิภาพ ลดการเข้าถึงดิสก์ซึ่งช้ากว่าและสิ้นเปลืองทรัพยากร
+- จำนวนการอ่านจากดิสก์น้อยมาก: มีเพียง 17,599 ครั้งเทียบกับการเรียกจากแคชกว่า 4 ล้านครั้ง แสดงว่าข้อมูลในฐานข้อมูลนี้ถูกใช้งานบ่อยและถูกเก็บไว้ในแคชอย่างเหมาะสม
+- เวลาในการประมวลผลต่ำ (22.377 ms): บ่งบอกว่าคำสั่ง SQL ทำงานได้รวดเร็ว ซึ่งเป็นผลจากการใช้แคชอย่างมีประสิทธิภาพ
 
 #### 6.4 ดู Table ที่มี Disk I/O มาก
 ```sql
@@ -608,10 +628,13 @@ ORDER BY heap_blks_read DESC
 LIMIT 10;
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+
+
 2. อธิบายผลลัพธ์ที่ได้
-```
+
+
 ### Step 7: การปรับแต่ง Autovacuum
 
 #### 7.1 ทำความเข้าใจ Autovacuum Parameters
@@ -623,10 +646,15 @@ WHERE name LIKE '%autovacuum%'
 ORDER BY name;
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+<img width="1473" height="725" alt="image" src="https://github.com/user-attachments/assets/86da23ac-a9ef-49c7-a0d4-b443eb42beb2" />
+
 2. อธิบายค่าต่าง ๆ ที่มีความสำคัญ
-```
+- ค่าที่กำหนดเหล่านี้ควบคุมพฤติกรรมของ autovacuum ในการล้างข้อมูลเก่าและวิเคราะห์ข้อมูลในฐานข้อมูล
+ค่า scale factor และ threshold กำหนดจุดที่จะเริ่มกระบวนการ vacuum หรือ analyze เพื่อรักษาประสิทธิภาพและป้องกันปัญหา bloat
+การตั้งค่าหน่วงเวลา (vacuum_cost_delay) และจำนวน worker ช่วยควบคุมผลกระทบต่อระบบขณะทำงาน
+log_autovacuum_min_duration กำหนดการบันทึกข้อมูลการทำงานของ autovacuum เพื่อช่วยติดตามและวิเคราะห์
 
 #### 7.2 การปรับแต่ง Autovacuum สำหรับประสิทธิภาพ
 ```sql
@@ -653,9 +681,11 @@ ALTER SYSTEM SET autovacuum_work_mem = '512MB';
 SELECT pg_reload_conf();
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลองการปรับแต่ง Autovacuum (Capture รวมทั้งหมด 1 รูป)
-```
+
+<img width="497" height="130" alt="image" src="https://github.com/user-attachments/assets/2eef3461-d0b1-4aac-a32b-fb9b127d88ae" />
+
 
 ### Step 8: Performance Testing และ Benchmarking
 
@@ -728,10 +758,14 @@ FROM performance_results
 ORDER BY test_timestamp DESC;
 ```
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+<img width="706" height="242" alt="image" src="https://github.com/user-attachments/assets/82cc5c9f-bec0-4bcf-ab93-3766f280b124" />
+
 2. อธิบายผลลัพธ์ที่ได้
-```
+- ฟังก์ชัน run_performance_test ไม่ทำงานสำเร็จเพราะมีข้อผิดพลาดที่ต้องแก้ไขในโค้ด PL/pgSQL (ใช้ SELECT แทน PERFORM)
+ตาราง performance_results ไม่มีข้อมูลบันทึกผลการทดสอบ
+จึงไม่เห็นผลลัพธ์การทดสอบการทำงานและเวลา execution time ที่คาดหวัง
 
 
 ### Step 9: การ Monitoring และ Alerting
@@ -765,9 +799,10 @@ FROM pg_settings WHERE name = 'maintenance_work_mem';
 SELECT * FROM memory_monitor;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง
-```
+<img width="748" height="216" alt="image" src="https://github.com/user-attachments/assets/0ca914d0-b868-4e6b-851e-0aff91487627" />
+
 
 ### Step 10: การจำลอง Load Testing
 
@@ -814,9 +849,15 @@ CREATE INDEX idx_orders_product_id ON load_test_orders(product_id);
 CREATE INDEX idx_orders_date ON load_test_orders(order_date);
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง การสร้าง FUNCTION และ INDEX
-```
+
+<img width="640" height="491" alt="image" src="https://github.com/user-attachments/assets/d143a01d-ddcc-4814-908e-282f4884ee6a" />
+
+<img width="890" height="426" alt="image" src="https://github.com/user-attachments/assets/3ab731f3-5ce8-4359-bd0e-a64637477371" />
+
+<img width="809" height="219" alt="image" src="https://github.com/user-attachments/assets/f759c294-424d-4c44-a057-aae736d9b049" />
+
 
 #### 10.2 การทดสอบ Query Performance
 ```sql
@@ -985,29 +1026,42 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 ```
-
+```
 -- รัน load test ทดสอบเบาๆ
 SELECT * FROM simulate_oltp_workload(25);
-
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง
-```
+
+<img width="816" height="318" alt="image" src="https://github.com/user-attachments/assets/d0615626-8b71-4b14-9013-e01407c39ae9" />
+
+
 -- ทดสอบปานกลาง  
 SELECT * FROM simulate_oltp_workload(100);
 ### ผลการทดลอง
-```
+
 1. รูปผลการทดลอง
+<img width="897" height="345" alt="image" src="https://github.com/user-attachments/assets/c790e2c9-11c0-4ac1-8fb9-3026d0246751" />
+
 2. อธิบายผลการทดลอง การ SELECT , INSERT, UPDATE, DELETE เป็นอย่างไร 
-```
+SELECT และ INSERT
+- เร็วมาก: ใช้เวลาเฉลี่ยน้อยกว่า 1 มิลลิวินาทีต่อคำสั่ง
+- เสถียร: เวลาสูงสุดและต่ำสุดไม่ต่างกันมาก แสดงว่าระบบสามารถจัดการคำสั่งเหล่านี้ได้ดี
+- เหมาะกับงานที่มีการอ่านหรือเขียนข้อมูลจำนวนมากแบบ real-time
+UPDATE และ DELETE
+- ช้ากว่ามาก: ใช้เวลาหลักร้อยมิลลิวินาทีต่อคำสั่ง
+- DELETE (soft delete) ช้ากว่า UPDATE เล็กน้อย อาจเกิดจากการมีเงื่อนไขหรือการจัดการกับคอลัมน์ deleted_at
+
 
 -- ทดสอบหนักขึ้น เครื่องใครไม่ไหวผ่านก่อน หรือเปลี่ยนค่า 500 เป็น 200 :)
 SELECT * FROM simulate_oltp_workload(500);
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง
-```
+
+<img width="814" height="344" alt="image" src="https://github.com/user-attachments/assets/4f64fdfa-9609-4e54-9a88-1415af8d8e0e" />
+
 
 ### Step 11: การเปรียบเทียบประสิทธิภาพ
 
@@ -1200,10 +1254,12 @@ $$ LANGUAGE plpgsql;
 SELECT * FROM run_benchmark_suite();
 ```
 ### ผลการทดลอง
-```
-รูปผลการทดลอง
-```
 
+รูปผลการทดลอง
+
+<img width="809" height="243" alt="image" src="https://github.com/user-attachments/assets/856e67cf-1fd8-458b-a877-83e21373e551" />
+
+```
 -- ดูผลการทดสอบ
 SELECT 
     config_name,
@@ -1217,9 +1273,11 @@ FROM benchmark_results
 ORDER BY test_timestamp DESC;
 ```
 ### ผลการทดลอง
-```
+
 รูปผลการทดลอง
-```
+
+<img width="1172" height="503" alt="image" src="https://github.com/user-attachments/assets/55a96280-7406-4bcd-99c1-0400ec8e4500" />
+
 
 ### Step 12: การจัดการ Configuration แบบ Advanced
 
